@@ -3,100 +3,84 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from keras.api.models import Sequential
-from keras.api.layers import Dense
+from keras.api.layers import Dense, Input
 from keras.api.optimizers import SGD   
 
-def normalizar_datos(data):
-    data['Altura'] = data['Altura'] / data['Altura'].max() # dividimos cada valor por el maximo
-    data['Peso'] = data['Peso'] / data['Peso'].max() # asi aseguramos que los valores esten entre 0 y 1
-    return data
 
+# FUNCIONES
+def normalizar_datos(data):
+    x = data['Altura'].values
+    y = data['Peso'].values
+
+    # Normalizamos en X
+    x_mean = np.mean(x)
+    x_std = np.std(x)
+    x_normalized = (x - x_mean) / x_std
+
+    # Normalizamos en Y
+    y_mean = np.mean(y)
+    y_std = np.std(y)
+    y_normalized = (y - y_mean) / y_std
+
+    return x, y, x_mean, y_mean, x_normalized, y_normalized, x_std, y_std
 
 def generation_model():
-    np.random.seed(2) # replica los resultados en distintas computadores
-    modelo = Sequential() # crea una caja vacia al que iremos añadiendo elementos
-    
-    # tamaño de los datos de entrada y salida
-    input_dim = 1 # una dimension
-    output_dim = 1
-    
-    # capa de entrada, capa de salida y la funcion de activacion
-    capa = Dense(output_dim, input_dim=input_dim, activation='linear') 
-    modelo.add(capa)
-    
-    # creamos una instancia del gradiente descendente con una tasa de aprendizaje
-    sdg = SGD(learning_rate=0.0004)
-    modelo.compile(loss='mse', optimizer=sdg) # funcion de error: Mean Squared Error
-    modelo.summary() # mostramos resumen del modelo
-    return modelo
-    
 
-def entrenamiento_modelo(modelo, data):
+    # Crear el modelo
+    model = Sequential()
+    model.add(Input(shape=(1,)))
+    model.add(Dense(1, activation='linear'))
+
+    # Definir el optimizador
+    optimizer = SGD(learning_rate=0.01)  # Ajustar la tasa de aprendizaje
+    model.compile(optimizer=optimizer, loss='mse')
+
+    return model
     
-    x = data['Altura'].values
-    y = data['Peso'].values
-    
-    num_epochs = 1000 # numero de ciclos de entrenamiento
-    batch_size = x.shape[0] # el tamaño de datos 
-    
-    history = modelo.fit(x, y, epochs=num_epochs, batch_size=batch_size, verbose=1) # resultados del entrenamiento, comportamiento de perdida 
-    
-    capa = modelo.layers[0]
-    
-    # parametros del modelo para minimizar la perdida
-    w, b = capa.get_weights() # peso y sesgo
-    print('Parámetros: w = {:.4f}, b = {:.4f}'.format(w[0][0], b[0]))
-    
-    return history, w[0][0], b[0]
+def train_model(model, x_normalized, y_normalized):
+    # Entrenar el modelo
+    history = model.fit(x_normalized, y_normalized, epochs=10000, batch_size=len(x_normalized), verbose=1)
+
+    # Verificar la estructura del modelo
+    model.summary()
+
+    # Imprimir los parámetros del modelo
+    weights, bias = model.layers[0].get_weights()
+    print(f'Peso (w): {weights[0][0]}, Sesgo (b): {bias[0]}')
+
+    return history
 
 
-# mostramos como evoluciona el ECM
-def grafico_ecm(history):
-    # plt.subplot(1, 2, 1)
-    plt.figure(figsize=(10, 5))
-    plt.plot(history.history['loss'], 'b-', label='ECM')
-    plt.xlabel('Épocas')
-    plt.ylabel('ECM')
-    plt.title('ECM vs. Épocas')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-    
 
-def grafico_regresion(data, w, b):
-    x = data['Altura'].values
-    y = data['Peso'].values
-    
-    y_prediccion = w * x + b
-    
-    plt.scatter(x, y, label='Datos originales', color='blue')
-    plt.plot(x, y_prediccion, label='Recta de Regresión', color='red')
-    plt.xlabel('Altura (Normalizada)')
-    plt.ylabel('Peso (Normalizado)')
-    plt.title('Recta de Regresión vs. Datos Originales')
-    plt.legend()
-    plt.show()
+# EJECUTAMOS
 
+# Leer los datos
+data = pd.read_csv('altura_peso.csv')
 
-def prediccion(modelo, altura_cm, data):
-    alt_max = data['Altura'].max()
-    alt_norm = altura_cm / alt_max
-    
-    y_pred = modelo.predict(np.array([alt_norm]))
-    
-    
-    peso_max = data['Peso'].max()
-    peso = y_pred[0][0] * peso_max
-    
-    print(f'El peso para una persona de {altura_cm} cm es de {peso:.2f} kg')
-    return peso
+# Normalizar los datos
+x, y, x_mean, y_mean, x_normalized, y_normalized, x_std, y_std = normalizar_datos(data)
 
-data = pd.read_csv('altura_peso.csv')  
-normalizado = normalizar_datos(data)
+# Crear el modelo
 modelo = generation_model()
-history, w, b = entrenamiento_modelo(modelo, normalizado)
-grafico_ecm(history)
-grafico_regresion(data, w, b)
 
-altura = 170
-prediccion(modelo, altura, normalizado)
+# Entrenar el modelo
+historial = train_model(modelo, x_normalized, y_normalized)
+
+# GRAFICAMOS
+
+# Graficar el error cuadrático medio vs. el número de épocas
+plt.figure()
+plt.plot(historial.history['loss'])
+plt.xlabel('Épocas')
+plt.ylabel('Error Cuadrático Medio')
+plt.title('ECM vs. Número de Épocas')
+plt.show()
+
+# Superponer la recta de regresión sobre los datos originales
+plt.figure()
+plt.scatter(x, y, label='Datos Originales')
+plt.plot(x, modelo.predict((x - x_mean) / x_std) * y_std + y_mean, color='red', label='Recta de Regresión')
+plt.xlabel('Altura')
+plt.ylabel('Peso')
+plt.legend()
+plt.show()
