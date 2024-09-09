@@ -84,3 +84,11 @@ plt.xlabel('Altura')
 plt.ylabel('Peso')
 plt.legend()
 plt.show()
+
+# Predicción dada una altura
+
+altura_especifica = 180
+altura_normalizada = (altura_especifica - x_mean) / x_std
+peso_normalizado = modelo.predict(np.array([altura_normalizada]))
+peso_predicho = peso_normalizado * y_std + y_mean
+print(f'Predicción del peso para una altura de {altura_especifica} cm: {peso_predicho[0][0]} kg')
